@@ -75,7 +75,8 @@ def run_agent(pnr: str, last_name: str, message: str) -> str:            # ✏�
         )
         turns += 1
 
-    return text_of(response)
+    answer = text_of(response)
+    return answer
 
 
 def tool_list() -> List[Dict[str, Any]]:                   # ✏️ Build 2, step 2.2
@@ -124,7 +125,7 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
         },
         {
             "name": "search_alternatives",
-            "description": "search",
+            "description": "Search for alternative flights the customer can rebook to after a disruption. Returns a list of flight options with details including flight number, date, and booking class.",
             "input_schema": {
                 "type": "object",
                 "properties": {"pnr": {"type": "string"}},
