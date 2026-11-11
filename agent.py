@@ -13,6 +13,10 @@ from typing import Any, Dict, List
 from support import (MODEL, SYSTEM_PROMPT, call_local, execute_tool, mcp_client,
                      new_session, next_available_day, record_tool_result,
                      runtime_preamble)
+import csv
+import json
+import re
+from datetime import datetime, timedelta, timezone
 from support import mock_backend
 
 MAX_TOOL_CALLS = 8  # Larkspur's own build capped the loop here; then a human takes over.
@@ -62,11 +66,12 @@ EXTRA_TOOLS: List[Dict[str, Any]] = [    # ✏️ Build 2, step 2.1: schemas for
     {
         "name": "fare_rules",
         "description": (
-            "Explain Larkspur's policies from the handbook regarding topics like refunds, "
-            "care entitlements, fare families, and what chat automation cannot do. Use this "
-            "when a customer asks about the policy rules themselves, not what they specifically "
-            "qualify for. Returns the relevant policy section from the handbook with the rules "
-            "and explanation."
+            "Explain Larkspur's fare and care rules from the handbook: refunds and "
+            "cancellation rules, delay and diversion rules, meal and hotel entitlements, fare "
+            "families. Use this when a customer asks what the rules are, not what they "
+            "specifically qualify for. It only explains; it does not decide what the assistant "
+            "may do. For a customer asking the assistant to perform an action, use "
+            "what_automation_will_not_do first. Returns the relevant handbook section."
         ),
         "input_schema": {
             "type": "object",
@@ -75,25 +80,51 @@ EXTRA_TOOLS: List[Dict[str, Any]] = [    # ✏️ Build 2, step 2.1: schemas for
             },
             "required": ["query"],
         },
-    }
+    },
+    {
+        "name": "ground_stop_status",
+        "description": (
+            "Check whether an airport is under a ground stop and until when: use when the "
+            "customer asks if Denver (or another airport) is still stopped, or whether the "
+            "stop will still be on when their own flight leaves. Give the airport and, to "
+            "judge the customer's flight instead of the current moment, the PNR. Compares "
+            "the stop window in the flight remarks with the current time or with the "
+            "customer's scheduled time, in the airport's time zone."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "airport": {"type": "string", "description": "IATA code, e.g. DEN."},
+                "pnr": {
+                    "type": "string",
+                    "description": "Optional. If given, judge the stop at the customer's "
+                                   "own flight time instead of right now.",
+                },
+            },
+            "required": ["airport"],
+        },
+    },
 ]
 
-SECTION_7 = [
-    "refunds", "fare-difference collection", "hotel approval", "other-airline rebooking",
-    "group bookings of 10 or more", "unaccompanied minors",
-    "itineraries with partner-operated flights", "pets in cabin",
-    "medical requests on a new flight", "baggage tracing", "cancelling the whole trip",
-]
+HANDBOOK = mock_backend.DATA_DIR / "fare_rules_excerpt.md"
 
 
 def what_automation_will_not_do(request: str) -> Dict[str, Any]:
+    """Guard: reads Section 7 live from the handbook file, so a handbook edit is
+    picked up on the next call with no code change."""
+    text = HANDBOOK.read_text(encoding="utf-8")
+    start = text.find("### 7.")
+    if start == -1:
+        return {"error": "Section 7 not found in the handbook. Escalate to a human."}
     return {
         "handbook_section": 7,
         "request": request,
-        "not_allowed_for_the_assistant": SECTION_7,
+        "section_7_text": text[start:].strip(),
         "next_step": (
-            "If the request matches anything on this list, do not perform it: call "
-            "escalate_to_human. Otherwise continue as normal."
+            "Compare the request with Section 7. If it asks the assistant to do anything "
+            "Section 7 says is handled by people (cancelling the whole trip counts), do not "
+            "perform it: call escalate_to_human with a summary. If the customer also asks what "
+            "the rule is, call fare_rules to explain it. Otherwise continue as normal."
         ),
     }
 
@@ -118,9 +149,59 @@ def hold_time_left(pnr: str, option_id: str = "") -> Dict[str, Any]:
     }
 
 
+_UTC_OFFSET_HOURS = {"EDT": -4, "CDT": -5, "MDT": -6, "MST": -7, "PDT": -7}
+
+
+def ground_stop_status(airport: str, pnr: str = "") -> Dict[str, Any]:
+    airport = airport.upper()
+    with open(mock_backend.DATA_DIR / "flights.csv", encoding="utf-8", newline="") as f:
+        flights = list(csv.DictReader(f))
+
+    window = None
+    for row in flights:
+        m = re.search(r"ground stop (\d\d:\d\d)-(\d\d:\d\d) ([A-Z]{3})", row["remarks"])
+        if m and airport in (row["origin"], row["dest"]):
+            tz = timezone(timedelta(hours=_UTC_OFFSET_HOURS[m.group(3)]))
+            day = datetime.fromisoformat(row["date"]).date()
+
+            def at(hhmm):
+                return datetime.combine(day, datetime.strptime(hhmm, "%H:%M").time(), tz)
+            window = (at(m.group(1)), at(m.group(2)), m.group(3), row["flight_no"])
+            break
+    if window is None:
+        return {"airport": airport, "ground_stop_found": False,
+                "message": "No ground stop window found in the flight remarks for this airport."}
+    start, end, tz_name, source = window
+    tz = start.tzinfo
+
+    when, basis = mock_backend.FIXTURE_CLOCK.astimezone(tz), "now"
+    if pnr:
+        with open(mock_backend.DATA_DIR / "bookings.json", encoding="utf-8") as f:
+            bookings = json.load(f)["bookings"]
+        booking = bookings.get(pnr) if isinstance(bookings, dict) else next(
+            (b for b in bookings if b["pnr"] == pnr), None)
+        seg_flights = {s["flight_no"] for s in (booking or {}).get("segments", [])}
+        for row in flights:
+            if row["flight_no"] in seg_flights and airport in (row["origin"], row["dest"]):
+                col = "sched_dep_local" if row["origin"] == airport else "sched_arr_local"
+                day = datetime.fromisoformat(row["date"]).date()
+                when = datetime.combine(day, datetime.strptime(row[col], "%H:%M").time(), tz) \
+                    + timedelta(minutes=int(row["delay_min"]))
+                basis = "customer's flight %s (%s)" % (row["flight_no"], col)
+                break
+    state = "not_started" if when < start else "active" if when < end else "ended"
+    return {
+        "airport": airport, "ground_stop_found": True, "state_at_checked_time": state,
+        "checked_time": when.isoformat(), "checked_basis": basis,
+        "window_start": start.isoformat(), "window_end": end.isoformat(),
+        "window_zone": tz_name, "source": "remarks on %s" % source,
+    }
+
+
 LOCAL_TOOLS: Dict[str, Any] = {          # ✏️ Build 2, step 2.1: the functions behind them
     "what_automation_will_not_do": what_automation_will_not_do,
     "hold_time_left": hold_time_left,
+    "ground_stop_status": ground_stop_status,
 }
 
 
@@ -142,7 +223,6 @@ def fare_rules(query: str) -> str:
     section_mappings = [
         (["refund", "cancellation", "divert", "delay"], 5),
         (["hotel", "meal", "care", "entitlement"], 6),
-        (["chat", "automation", "cannot", "guardrail", "what"], 7),
         (["fare", "family", "class", "basic", "main", "first"], 4),
     ]
 
@@ -154,7 +234,7 @@ def fare_rules(query: str) -> str:
             break
 
     if matched_section is None:
-        return "I couldn't identify which policy section answers your question. Try asking about refunds, meals/hotels, fare families, or what chat cannot do."
+        return "I couldn't identify which policy section answers your question. Try asking about refunds, meals/hotels, or fare families."
 
     # Extract the section from the content
     section_start = f"### {matched_section}."
