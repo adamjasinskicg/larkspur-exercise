@@ -64,24 +64,6 @@ EXTRA_TOOLS: List[Dict[str, Any]] = [    # ✏️ Build 2, step 2.1: schemas for
         },
     },
     {
-        "name": "fare_rules",
-        "description": (
-            "Explain Larkspur's fare and care rules from the handbook: refunds and "
-            "cancellation rules, delay and diversion rules, meal and hotel entitlements, fare "
-            "families. Use this when a customer asks what the rules are, not what they "
-            "specifically qualify for. It only explains; it does not decide what the assistant "
-            "may do. For a customer asking the assistant to perform an action, use "
-            "what_automation_will_not_do first. Returns the relevant handbook section."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "The policy topic the customer is asking about (e.g., 'refund policy', 'hotel coverage', 'fare families')"}
-            },
-            "required": ["query"],
-        },
-    },
-    {
         "name": "ground_stop_status",
         "description": (
             "Check whether an airport is under a ground stop and until when: use when the "
@@ -102,31 +84,6 @@ EXTRA_TOOLS: List[Dict[str, Any]] = [    # ✏️ Build 2, step 2.1: schemas for
                 },
             },
             "required": ["airport"],
-        },
-    },
-    {
-        "name": "next_available_day",
-        "description": (
-            "Find the soonest calendar date on which a flight between two airports has at "
-            "least one open seat, searching forward from a start date. Use it when the "
-            "customer needs to know WHEN they can next fly (for example the route is full "
-            "today, or they ask 'what is the first day I can get out?'). It answers with a "
-            "date only: it does not list flights, times or option_ids, so use "
-            "search_alternatives for a disrupted booking's rebooking options and this tool "
-            "for a date question on any route. It checks seats for ONE passenger, so for a "
-            "party of more than one, say the answer needs checking for the whole group. "
-            "Only dates covered by the schedule data can be answered; if nothing is found, "
-            "say so rather than guessing."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "origin": {"type": "string", "description": "Departure airport, three-letter code, e.g. DEN."},
-                "dest": {"type": "string", "description": "Arrival airport, three-letter code, e.g. BOI."},
-                "date": {"type": "string", "description": "Date to start searching from, as YYYY-MM-DD, e.g. 2025-05-08."},
-                "cabin": {"type": "string", "description": "Y for main cabin or J for first. Defaults to Y if omitted."},
-            },
-            "required": ["origin", "dest", "date"],
         },
     },
 ]
@@ -227,63 +184,7 @@ LOCAL_TOOLS: Dict[str, Any] = {          # ✏️ Build 2, step 2.1: the functio
     "what_automation_will_not_do": what_automation_will_not_do,
     "hold_time_left": hold_time_left,
     "ground_stop_status": ground_stop_status,
-    "next_available_day": next_available_day,
 }
-
-
-def fare_rules(query: str) -> str:
-    """Look up fare rules from the handbook based on a customer query."""
-    import os
-
-    file_path = os.path.join(os.path.dirname(__file__), "data", "americas", "fare_rules_excerpt.md")
-
-    try:
-        with open(file_path) as f:
-            content = f.read()
-    except FileNotFoundError:
-        return "Error: fare_rules_excerpt.md not found."
-
-    query_lower = query.lower()
-
-    # Map keywords to section numbers
-    section_mappings = [
-        (["refund", "cancellation", "divert", "delay"], 5),
-        (["hotel", "meal", "care", "entitlement"], 6),
-        (["fare", "family", "class", "basic", "main", "first"], 4),
-    ]
-
-    # Find which section matches
-    matched_section = None
-    for keywords, section_num in section_mappings:
-        if any(keyword in query_lower for keyword in keywords):
-            matched_section = section_num
-            break
-
-    if matched_section is None:
-        return "I couldn't identify which policy section answers your question. Try asking about refunds, meals/hotels, or fare families."
-
-    # Extract the section from the content
-    section_start = f"### {matched_section}."
-    section_end = f"### {matched_section + 1}." if matched_section < 7 else None
-
-    try:
-        start_idx = content.find(section_start)
-        if start_idx == -1:
-            return f"Section {matched_section} not found in handbook."
-
-        if section_end:
-            end_idx = content.find(section_end, start_idx)
-            section_text = content[start_idx:end_idx].strip()
-        else:
-            section_text = content[start_idx:].strip()
-
-        return section_text
-    except Exception as e:
-        return f"Error extracting section: {str(e)}"
-
-
-# Add all tools to LOCAL_TOOLS
-LOCAL_TOOLS["fare_rules"] = fare_rules
 
 
 def text_of(response) -> str:
@@ -347,7 +248,7 @@ def run_agent(pnr: str, last_name: str, message: str) -> str:            # ✏�
 def tool_list() -> List[Dict[str, Any]]:                   # ✏️ Build 2, step 2.2
     """Given. Exactly what Claude is offered on every turn; run.py --show-tools
     prints this list."""
-    return build_tools() + EXTRA_TOOLS
+    return build_tools() + EXTRA_TOOLS + mcp_client.tools()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
