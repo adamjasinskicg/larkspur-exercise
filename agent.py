@@ -59,6 +59,23 @@ EXTRA_TOOLS: List[Dict[str, Any]] = [    # ✏️ Build 2, step 2.1: schemas for
             "required": ["pnr"],
         },
     },
+    {
+        "name": "fare_rules",
+        "description": (
+            "Explain Larkspur's policies from the handbook regarding topics like refunds, "
+            "care entitlements, fare families, and what chat automation cannot do. Use this "
+            "when a customer asks about the policy rules themselves, not what they specifically "
+            "qualify for. Returns the relevant policy section from the handbook with the rules "
+            "and explanation."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "The policy topic the customer is asking about (e.g., 'refund policy', 'hotel coverage', 'fare families')"}
+            },
+            "required": ["query"],
+        },
+    }
 ]
 
 SECTION_7 = [
@@ -105,6 +122,62 @@ LOCAL_TOOLS: Dict[str, Any] = {          # ✏️ Build 2, step 2.1: the functio
     "what_automation_will_not_do": what_automation_will_not_do,
     "hold_time_left": hold_time_left,
 }
+
+
+def fare_rules(query: str) -> str:
+    """Look up fare rules from the handbook based on a customer query."""
+    import os
+
+    file_path = os.path.join(os.path.dirname(__file__), "data", "americas", "fare_rules_excerpt.md")
+
+    try:
+        with open(file_path) as f:
+            content = f.read()
+    except FileNotFoundError:
+        return "Error: fare_rules_excerpt.md not found."
+
+    query_lower = query.lower()
+
+    # Map keywords to section numbers
+    section_mappings = [
+        (["refund", "cancellation", "divert", "delay"], 5),
+        (["hotel", "meal", "care", "entitlement"], 6),
+        (["chat", "automation", "cannot", "guardrail", "what"], 7),
+        (["fare", "family", "class", "basic", "main", "first"], 4),
+    ]
+
+    # Find which section matches
+    matched_section = None
+    for keywords, section_num in section_mappings:
+        if any(keyword in query_lower for keyword in keywords):
+            matched_section = section_num
+            break
+
+    if matched_section is None:
+        return "I couldn't identify which policy section answers your question. Try asking about refunds, meals/hotels, fare families, or what chat cannot do."
+
+    # Extract the section from the content
+    section_start = f"### {matched_section}."
+    section_end = f"### {matched_section + 1}." if matched_section < 7 else None
+
+    try:
+        start_idx = content.find(section_start)
+        if start_idx == -1:
+            return f"Section {matched_section} not found in handbook."
+
+        if section_end:
+            end_idx = content.find(section_end, start_idx)
+            section_text = content[start_idx:end_idx].strip()
+        else:
+            section_text = content[start_idx:].strip()
+
+        return section_text
+    except Exception as e:
+        return f"Error extracting section: {str(e)}"
+
+
+# Add all tools to LOCAL_TOOLS
+LOCAL_TOOLS["fare_rules"] = fare_rules
 
 
 def text_of(response) -> str:
