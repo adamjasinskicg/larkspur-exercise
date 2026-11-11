@@ -17,8 +17,52 @@ from support import (MODEL, SYSTEM_PROMPT, call_local, execute_tool, mcp_client,
 MAX_TOOL_CALLS = 8  # Larkspur's own build capped the loop here; then a human takes over.
 
 TONE_ADDENDUM = ""                       # ✏️ Build 4, step 4.1, intelligence goal
-EXTRA_TOOLS: List[Dict[str, Any]] = []   # ✏️ Build 2, step 2.1: schemas for the tools you add
-LOCAL_TOOLS: Dict[str, Any] = {}         # ✏️ Build 2, step 2.1: the functions behind them
+EXTRA_TOOLS: List[Dict[str, Any]] = [    # ✏️ Build 2, step 2.1: schemas for the tools you add
+    {
+        "name": "what_automation_will_not_do",
+        "description": (
+            "Call this first, on every customer request, before taking any other action, to "
+            "check whether the customer is asking for something Section 7 of the Handbook "
+            "does not allow the assistant to do (for example cancelling the whole trip). "
+            "It takes no action itself. If the request is on the Section 7 list, human "
+            "escalation is required."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "request": {
+                    "type": "string",
+                    "description": "What the customer is asking for, in their own words.",
+                },
+            },
+            "required": ["request"],
+        },
+    },
+]
+
+SECTION_7 = [
+    "refunds", "fare-difference collection", "hotel approval", "other-airline rebooking",
+    "group bookings of 10 or more", "unaccompanied minors",
+    "itineraries with partner-operated flights", "pets in cabin",
+    "medical requests on a new flight", "baggage tracing", "cancelling the whole trip",
+]
+
+
+def what_automation_will_not_do(request: str) -> Dict[str, Any]:
+    return {
+        "handbook_section": 7,
+        "request": request,
+        "not_allowed_for_the_assistant": SECTION_7,
+        "next_step": (
+            "If the request matches anything on this list, do not perform it: call "
+            "escalate_to_human. Otherwise continue as normal."
+        ),
+    }
+
+
+LOCAL_TOOLS: Dict[str, Any] = {          # ✏️ Build 2, step 2.1: the functions behind them
+    "what_automation_will_not_do": what_automation_will_not_do,
+}
 
 
 def text_of(response) -> str:
