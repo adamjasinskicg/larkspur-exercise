@@ -13,6 +13,7 @@ from typing import Any, Dict, List
 from support import (MODEL, SYSTEM_PROMPT, call_local, execute_tool, mcp_client,
                      new_session, next_available_day, record_tool_result,
                      runtime_preamble)
+from support import mock_backend
 
 MAX_TOOL_CALLS = 8  # Larkspur's own build capped the loop here; then a human takes over.
 
@@ -38,6 +39,26 @@ EXTRA_TOOLS: List[Dict[str, Any]] = [    # ✏️ Build 2, step 2.1: schemas for
             "required": ["request"],
         },
     },
+    {
+        "name": "hold_time_left",
+        "description": (
+            "Check how much time is left on a seat hold for a booking: use when the customer "
+            "asks how long they have before the seat is released. Compares the current time "
+            "with the saved expiry of the hold. If there is no hold, or it has expired, it "
+            "says so and a new search is needed."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pnr": {"type": "string", "description": "The booking's PNR."},
+                "option_id": {
+                    "type": "string",
+                    "description": "The seat/option that was held, if known.",
+                },
+            },
+            "required": ["pnr"],
+        },
+    },
 ]
 
 SECTION_7 = [
@@ -60,8 +81,29 @@ def what_automation_will_not_do(request: str) -> Dict[str, Any]:
     }
 
 
+def hold_time_left(pnr: str, option_id: str = "") -> Dict[str, Any]:
+    now = mock_backend.FIXTURE_CLOCK  # the pack's one "now", Denver time (-06:00)
+    holds = [
+        (hold_id, h) for hold_id, h in mock_backend._holds.items()
+        if h["pnr"] == pnr and (not option_id or h["option_id"] == option_id)
+    ]
+    live = [(i, h) for i, h in holds if h["expires_at"] > now]
+    if not live:
+        return {
+            "pnr": pnr, "hold_active": False,
+            "message": "No active hold: it has expired or never existed. Run a new search.",
+        }
+    hold_id, h = live[-1]
+    return {
+        "pnr": pnr, "hold_active": True, "hold_id": hold_id, "option_id": h["option_id"],
+        "expires_at": h["expires_at"].isoformat(),
+        "minutes_left": round((h["expires_at"] - now).total_seconds() / 60, 1),
+    }
+
+
 LOCAL_TOOLS: Dict[str, Any] = {          # ✏️ Build 2, step 2.1: the functions behind them
     "what_automation_will_not_do": what_automation_will_not_do,
+    "hold_time_left": hold_time_left,
 }
 
 
