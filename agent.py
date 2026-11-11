@@ -75,7 +75,8 @@ def run_agent(pnr: str, last_name: str, message: str) -> str:            # ✏�
         )
         turns += 1
 
-    return text_of(response)
+    answer = text_of(response)
+    return answer
 
 
 def tool_list() -> List[Dict[str, Any]]:                   # ✏️ Build 2, step 2.2
@@ -124,7 +125,7 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
         },
         {
             "name": "search_alternatives",
-            "description": "Search for alternative flights for a customer whose flight is cancelled, diverted or significantly delayed. Call it after get_flight_status confirms the disruption. Origin, destination and dates are looked up from the booking by the pnr, so send only the pnr. Each option returned carries an option_id; use that value for hold_seat and for check_policy's chosen_option_id.",
+            "description": "Search for alternative flights the customer can rebook to after a disruption. Call it after get_flight_status confirms the disruption. Origin, destination and dates are looked up from the booking by the pnr, so send only the pnr. Returns flight options with details including flight number, date, and booking class. Each option returned carries an option_id; use that value for hold_seat and for check_policy's chosen_option_id.",
             "input_schema": {
                 "type": "object",
                 "properties": {"pnr": {"type": "string"}},
