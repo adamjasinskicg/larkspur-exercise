@@ -104,6 +104,31 @@ EXTRA_TOOLS: List[Dict[str, Any]] = [    # ✏️ Build 2, step 2.1: schemas for
             "required": ["airport"],
         },
     },
+    {
+        "name": "next_available_day",
+        "description": (
+            "Find the soonest calendar date on which a flight between two airports has at "
+            "least one open seat, searching forward from a start date. Use it when the "
+            "customer needs to know WHEN they can next fly (for example the route is full "
+            "today, or they ask 'what is the first day I can get out?'). It answers with a "
+            "date only: it does not list flights, times or option_ids, so use "
+            "search_alternatives for a disrupted booking's rebooking options and this tool "
+            "for a date question on any route. It checks seats for ONE passenger, so for a "
+            "party of more than one, say the answer needs checking for the whole group. "
+            "Only dates covered by the schedule data can be answered; if nothing is found, "
+            "say so rather than guessing."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "origin": {"type": "string", "description": "Departure airport, three-letter code, e.g. DEN."},
+                "dest": {"type": "string", "description": "Arrival airport, three-letter code, e.g. BOI."},
+                "date": {"type": "string", "description": "Date to start searching from, as YYYY-MM-DD, e.g. 2025-05-08."},
+                "cabin": {"type": "string", "description": "Y for main cabin or J for first. Defaults to Y if omitted."},
+            },
+            "required": ["origin", "dest", "date"],
+        },
+    },
 ]
 
 HANDBOOK = mock_backend.DATA_DIR / "fare_rules_excerpt.md"
@@ -202,6 +227,7 @@ LOCAL_TOOLS: Dict[str, Any] = {          # ✏️ Build 2, step 2.1: the functio
     "what_automation_will_not_do": what_automation_will_not_do,
     "hold_time_left": hold_time_left,
     "ground_stop_status": ground_stop_status,
+    "next_available_day": next_available_day,
 }
 
 
