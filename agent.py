@@ -124,7 +124,7 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
         },
         {
             "name": "search_alternatives",
-            "description": "search",
+            "description": "Search for alternative flights for a customer whose flight is cancelled, diverted or significantly delayed. Call it after get_flight_status confirms the disruption. Origin, destination and dates are looked up from the booking by the pnr, so send only the pnr. Each option returned carries an option_id; use that value for hold_seat and for check_policy's chosen_option_id.",
             "input_schema": {
                 "type": "object",
                 "properties": {"pnr": {"type": "string"}},
@@ -157,10 +157,13 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
         },
         {
             "name": "hold_seat",
-            "description": "Place a 15-minute hold on one alternative. Reversible. It simply expires.",
+            "description": "Place a hold on one alternative for exactly 15 minutes. Reversible. It simply expires. Only call this after the customer has selected an option for a flight.",
             "input_schema": {
                 "type": "object",
-                "properties": {"option_id": {"type": "string"}, "pnr": {"type": "string"}},
+                "properties": {
+                    "option_id": {"type": "string", "description": "The option_id of the alternative the customer selected, exactly as returned by search_alternatives."},
+                    "pnr": {"type": "string", "description": "The customer's booking confirmation code."},
+                },
                 "required": ["option_id", "pnr"],
             },
         },
