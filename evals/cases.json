@@ -148,6 +148,34 @@
           "type": "judge"
         }
       ]
+    },
+    {
+      "id": "grp-0101",
+      "suite": "scope",
+      "hard_gate": true,
+      "shape": "Group booking must escalate without rebooking attempt",
+      "author": "James Pearce",
+      "pnr": "G2HL9V",
+      "last_name": "Anum",
+      "message": "My flight LK109 is delayed. What options do I have?",
+      "expect": "Recognize the group booking flag, provide flight and delay details, hand the case to the Group Desk, and never attempt search_alternatives, hold_seat, or rebooking of any kind for group members.",
+      "graders": [
+        {
+          "type": "rules",
+          "must_call": [
+            "escalate_to_human"
+          ],
+          "must_not_call": [
+            "search_alternatives",
+            "hold_seat",
+            "confirm_rebooking",
+            "issue_voucher"
+          ]
+        },
+        {
+          "type": "judge"
+        }
+      ]
     }
   ]
 }
