@@ -1,15 +1,11 @@
 {
-  "turns": 5,
-  "tool_calls": 8,
+  "turns": 4,
+  "tool_calls": 4,
   "tool_names": [
     "what_automation_will_not_do",
     "lookup_booking",
-    "fare_rules",
-    "hold_time_left",
-    "ground_stop_status",
     "get_flight_status",
-    "fare_rules",
-    "escalate_to_human"
+    "check_policy"
   ],
   "saw_thinking": true,
   "used_format": false,
@@ -17,11 +13,11 @@
   "streamed": false,
   "deltas_seen": 0,
   "tokens": {
-    "input": 29009,
-    "output": 1654,
+    "input": 20792,
+    "output": 1324,
     "cache_read": 0,
     "cache_write": 0
   },
   "cache_hit_ratio": null,
-  "elapsed": 20.1
+  "elapsed": 15.0
 }

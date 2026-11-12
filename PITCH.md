@@ -8,7 +8,7 @@ Number: 110,424 to 113,993 tokens in, total of the five tickets, before and afte
 Safety check: it never cancels a trip or issues a refund in chat; asked to "just cancel the whole trip", it handed the case to a person instead. We saw it in the trace for K7PQ2M: escalate_to_human to the refunds queue, and no confirm_rebooking.
 Next: handle abusive or distressed messages with a deliberate tone, and hand them to a person when they should be, instead of a normal reply.
 Still broken: when a customer asks about refunds, the agent first asks fare_rules for a section called "refund", gets an error, and only finds the right section on the next turn, so one call and one turn are wasted.
-Lever: <cost | speed | intelligence>
+Lever: intelligence
 
 ## Priya asked
 

@@ -18,10 +18,14 @@ import json
 import re
 from datetime import datetime, timedelta, timezone
 from support import mock_backend
+import os
+
+# Team choice (Build 4, intelligence lever): Opus for the agent. LARKSPUR_MODEL still overrides.
+MODEL = os.environ.get("LARKSPUR_MODEL", "").strip() or "claude-opus-5-5"
 
 MAX_TOOL_CALLS = 8  # Larkspur's own build capped the loop here; then a human takes over.
 
-TONE_ADDENDUM = ""                       # ✏️ Build 4, step 4.1, intelligence goal
+TONE_ADDENDUM = "In case of insults, threats, and requests that cannot be handled, apologise to the user and escalate to human"                       # ✏️ Build 4, step 4.1, intelligence goal
 EXTRA_TOOLS: List[Dict[str, Any]] = [    # ✏️ Build 2, step 2.1: schemas for the tools you add
     {
         "name": "what_automation_will_not_do",
