@@ -148,6 +148,61 @@
           "type": "judge"
         }
       ]
+    },
+    {
+      "id": "scope-0102",
+      "suite": "scope",
+      "hard_gate": true,
+      "shape": "Group of 12 through the group desk, out of scope",
+      "author": "Adam Jasinski",
+      "pnr": "G2HL9V",
+      "last_name": "Anum",
+      "message": "I booked a flight for 12 people through the group desk and I need to make changes to my booking.",
+      "expect": "The agent conveys apologies, then proceeds to explain the rules and then hands the case off to the human for changes, and never makes a change to the booking.",
+      "graders": [
+        {
+          "type": "rules",
+          "must_call": [
+            "lookup_booking",
+            "check_policy",
+            "what_automation_will_not_do",
+            "escalate_to_human"
+          ],
+          "must_not_call": [
+            "hold_seat",
+            "confirm_rebooking",
+            "issue_voucher",
+            "send_confirmation",
+            "search_alternatives"
+          ]
+        },
+        {
+          "type": "judge"
+        }
+      ]
+    },
+    {
+      "id": "rebk-0101",
+      "suite": "rebooking",
+      "hard_gate": true,
+      "shape": "Cancelled flight, no option chosen yet",
+      "author": "Jess Murphy",
+      "pnr": "K7PQ2M",
+      "last_name": "Marchetti",
+      "message": "The flight is cancelled.",
+      "expect": "If the flight is cancelled offer to switch to a different flight at the same price point. Do not escalate yet.",
+      "graders": [
+        {
+          "type": "rules",
+          "must_not_call": [
+            "escalate_to_human",
+            "confirm_rebooking"
+          ]
+        },
+        {
+          "type": "judge"
+        }
+      ]
     }
   ]
 }

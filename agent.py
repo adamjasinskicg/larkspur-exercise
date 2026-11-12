@@ -307,7 +307,8 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
                 "what get_flight_status told you; fare_family, loyalty_tier and whether this "
                 "is overnight are looked up from the booking, not asked of you. Every "
                 "response carries a policy_row_id. Cite it if you reference this decision "
-                "again."
+                "again. Call check_policy before escalating, to double check the current "
+                "policy."
             ),
             "input_schema": {
                 "type": "object",
